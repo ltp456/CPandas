@@ -1,9 +1,12 @@
 use iced::{Settings, window};
 use iced::pure::Application;
+use log::LevelFilter;
+
 fn main() -> iced::Result {
+    env_logger::builder().filter(Some("node"),LevelFilter::Trace).init();
     node::CPandas::run(Settings {
         window: window::Settings {
-            size: (500, 500),
+            size: (600, 800),
             ..window::Settings::default()
         },
         ..Settings::default()
