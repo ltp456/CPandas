@@ -1,8 +1,11 @@
 use std::borrow::BorrowMut;
 
 use iced::{alignment, Color, Command, Length, Renderer};
-
 use iced::pure::{Application, button, column, container, Element, row, scrollable, text, text_input};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use db::Database;
 
 #[derive(Debug)]
 pub enum CPandas {
@@ -15,6 +18,9 @@ pub enum CPandas {
 pub struct State {
     items: Vec<Item>,
     input_item: InputItem,
+   // db: Database,
+    secret: String,
+    // todo
 }
 
 
@@ -35,11 +41,13 @@ impl InputItem {
 }
 
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Item {
+    id: String,
     account: String,
     secret: String,
     desc: String,
+    status: usize,
 }
 
 
@@ -48,6 +56,7 @@ pub enum Message {
     New,
     CloseNew,
     DelItem(usize),
+    DecodeItem(usize),
     AccountValueEdited(String),
     SecretValueEdited(String),
     DescValueEdited(String),
@@ -64,12 +73,10 @@ impl Application for CPandas {
         log::debug!("new..");
         (
             CPandas::HomePage(State {
-                items: vec![Item {
-                    account: "ddd".to_string(),
-                    secret: "ddd".to_string(),
-                    desc: "ddd".to_string(),
-                }],
+                items: vec![],
                 input_item: InputItem::default(),
+              //  db: Database::new(".db").unwrap(),
+                secret: "".to_string(),
             }),
             Command::none()
         )
@@ -98,13 +105,17 @@ impl Application for CPandas {
                         state.input_item.desc_value = value
                     }
                     Message::NewItemComplete => {
-                        state.items.push(
-                            Item {
-                                account: state.input_item.account_value.clone(),
-                                secret: state.input_item.secret_value.clone(),
-                                desc: state.input_item.desc_value.clone(),
-                            }
-                        );
+                        let uuid = Uuid::new_v4().to_string();
+                        let item = Item {
+                            id: uuid.clone(),
+                            account: state.input_item.account_value.clone(),
+                            secret: state.input_item.secret_value.clone(),
+                            desc: state.input_item.desc_value.clone(),
+                            status: 0,
+                        };
+                        // let data = serde_json::to_string(&item).unwrap();
+                        // state.db.put(uuid, data).unwrap();
+                        state.items.push(item);
                         state.input_item.clear();
                         log::debug!("input complete")
                     }
@@ -119,6 +130,10 @@ impl Application for CPandas {
                     }
                     Message::DelItem(index) => {
                         state.items.remove(index);
+                    }
+                    Message::DecodeItem(index) => {
+                        log::debug!("decode info");
+                        state.items.get_mut(index).unwrap().secret = "decode".to_string();
                     }
                     _ => {}
                 }
@@ -192,16 +207,26 @@ fn home_page_view<'a>(state: &State) -> Element<'a, Message> {
                         )
                         .push(
                             button(
-                                text("del")
+                                text("info")
                                     .width(Length::Fill)
                                     .horizontal_alignment(alignment::Horizontal::Center)
                                     .vertical_alignment(alignment::Vertical::Center)
                                     .size(20)
-                                    .color(Color::from([0.1,0.6,0.8]))
+                                    .color(Color::from([0.1, 0.6, 0.8]))
                             )
                                 .width(Length::Fill)
-                                .on_press(Message::DelItem(i))
+                                .on_press(Message::DecodeItem(i))
                         )
+                        .push(button(
+                            text("del")
+                                .width(Length::Fill)
+                                .horizontal_alignment(alignment::Horizontal::Center)
+                                .vertical_alignment(alignment::Vertical::Center)
+                                .size(20)
+                                .color(Color::from([0.9, 0.6, 0.8]))
+                        )
+                            .width(Length::Fill)
+                            .on_press(Message::DelItem(i)))
                 )
             })
         .width(Length::Fill)
