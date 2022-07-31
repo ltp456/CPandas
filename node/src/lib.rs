@@ -65,6 +65,7 @@ fn db_del_item(uid: &str) -> Result<()> {
 pub enum CPandas {
     HomePage(State),
     NewPage(State),
+    Guild(State),
 }
 
 
@@ -110,6 +111,8 @@ pub enum Message {
     CloseNew,
     DelItem(usize),
     DecodeItem(usize),
+    PasswordComplete,
+    PasswordValueEdited(String),
     AccountValueEdited(String),
     SecretValueEdited(String),
     DescValueEdited(String),
@@ -129,7 +132,7 @@ impl Application for CPandas {
         // DB.put(KEYS,serde_json::to_string(&keys).unwrap()).unwrap();
         let item_list = db_item_list().unwrap();
         (
-            CPandas::HomePage(State {
+            CPandas::Guild(State {
                 items: item_list,
                 input_item: InputItem::default(),
                 secret: "".to_string(),
@@ -150,8 +153,6 @@ impl Application for CPandas {
                 match message {
                     Message::CloseNew => {
                         *self = CPandas::HomePage(state.clone());
-
-
                     }
                     Message::AccountValueEdited(input_value) => {
                         state.input_item.account_value = input_value
@@ -193,6 +194,20 @@ impl Application for CPandas {
                     Message::DecodeItem(index) => {
                         log::debug!("decode info");
                         state.items.get_mut(index).unwrap().secret = "decode".to_string();
+                        // check
+                    }
+                    _ => {}
+                }
+            }
+
+            CPandas::Guild(state) => {
+                match message {
+                    Message::PasswordValueEdited(value) => {
+                        log::debug!("password: {}",value);
+                        state.secret = value
+                    }
+                    Message::PasswordComplete => {
+                        log::debug!("password completed")
                     }
                     _ => {}
                 }
@@ -207,8 +222,47 @@ impl Application for CPandas {
         match self {
             CPandas::HomePage(state) => { home_page_view(state) }
             CPandas::NewPage(state) => { new_page_view(state) }
+            CPandas::Guild(state) => { guild_page_view(state) }
         }
     }
+}
+
+fn guild_page_view(state: &State) -> Element<Message> {
+    let title = text("CPandas")
+        .width(Length::Fill)
+        .horizontal_alignment(alignment::Horizontal::Center)
+        .vertical_alignment(alignment::Vertical::Center)
+        .size(40)
+        .color(Color::from([0.5, 0.5, 0.5]));
+
+    let input = text_input("Input secret", &state.secret, Message::PasswordValueEdited)
+        .padding(15)
+        .size(20)
+        .on_submit(Message::PasswordComplete);
+
+    let confirm = button(
+        text("Confirm")
+            .size(20)
+            .width(Length::Fill)
+            .horizontal_alignment(alignment::Horizontal::Center)
+            .vertical_alignment(alignment::Vertical::Center)
+            .color(Color::from([0.8, 0.3, 0.9])))
+        .width(Length::Fill)
+        .padding(10)
+        .on_press(Message::PasswordComplete);
+    let content = column()
+        .spacing(15)
+        .width(Length::Fill)
+        .push(title)
+        .push(input)
+        .push(confirm);
+
+
+    container(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(20)
+        .into()
 }
 
 
