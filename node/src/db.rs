@@ -35,7 +35,7 @@ mod tests {
 
     #[test]
     fn it_works() {
-      //  let db = DB::open_default(".db").unwrap();
+        //  let db = DB::open_default(".db").unwrap();
         let database = Database::new(".db").unwrap();
         database.put("account", "password").unwrap();
         let data = database.get("account").unwrap().unwrap();

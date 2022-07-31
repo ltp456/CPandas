@@ -6,7 +6,6 @@ edition = "2021"
 
 [dependencies]
 
-db = { path = "../db" }
 iced = { version = "0.4", features = ["async-std", "debug", "default_system_font", "pure"] }
 serde = { version = "1.0.140", features = ["derive"] }
 serde_json = { version = "1.0.82" }
@@ -17,4 +16,6 @@ aes-gcm = "0.9.4"
 rand = "0.8.5"
 env_logger = "0.9.0"
 log = "0.4.17"
-
+sha2 = "0.10.2"
+hex = "0.4.3"
+rocksdb = "0.18.0"
