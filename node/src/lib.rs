@@ -1,18 +1,20 @@
-mod db;
-mod constants;
-mod types;
-mod utils;
-
 use std::borrow::{Borrow, BorrowMut};
 
 use anyhow::Result;
 use iced::{alignment, Color, Command, Length, Renderer};
-use iced::pure::{Application, button, column, container, Element, row, scrollable, text, text_input};
+use iced::pure::{Application, button, column, container, Element, row, scrollable, text, text_input, tooltip};
+use iced::tooltip::Position;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use db::Database;
+use utils::MemData;
+
+mod db;
+mod constants;
+mod types;
+mod utils;
 
 const KEYS: &str = "KEYS";
 
@@ -78,7 +80,8 @@ pub enum CPandas {
 pub struct State {
     items: Vec<Item>,
     input_item: InputItem,
-    secret: String,
+    input_secret: String,
+    secret :MemData
     // todo
 }
 
@@ -140,7 +143,8 @@ impl Application for CPandas {
             CPandas::Guild(State {
                 items: item_list,
                 input_item: InputItem::default(),
-                secret: "".to_string(),
+                input_secret: "".to_string(),
+                secret: Default::default()
             }),
             Command::none()
         )
@@ -209,10 +213,23 @@ impl Application for CPandas {
                 match message {
                     Message::PasswordValueEdited(value) => {
                         log::debug!("password: {}",value);
-                        state.secret = value
+                        state.input_secret = value
                     }
                     Message::PasswordComplete => {
-                        log::debug!("password completed")
+                        log::debug!("password completed");
+                        let hash = DB.get(constants::SECRET_HASH_KEY).unwrap();
+                        if hash.is_none() {
+                            let secret_hash = utils::sha256(state.input_secret.as_bytes()).unwrap();
+                            DB.put(constants::SECRET_HASH_KEY, secret_hash).unwrap();
+                        } else {
+                            let secret_hash = utils::sha256(state.input_secret.as_bytes()).unwrap();
+                            if String::from_utf8(hash.unwrap()).unwrap() == secret_hash {
+                                log::info!("secret hash is correct");
+                                    *self = CPandas::HomePage(state.clone());
+                            } else {
+                                log::error!("secret hash error: {:?} ",state.input_secret);
+                            }
+                        }
                     }
                     _ => {}
                 }
@@ -240,7 +257,16 @@ fn guild_page_view(state: &State) -> Element<Message> {
         .size(40)
         .color(Color::from([0.5, 0.5, 0.5]));
 
-    let input = text_input("Input secret", &state.secret, Message::PasswordValueEdited)
+
+    // let tips = tooltip(
+    //     text("错误信息"),
+    //     "info",
+    //     Position::Top,
+    // )
+    //     .gap(10);
+
+
+    let input = text_input("Input secret", &state.input_secret, Message::PasswordValueEdited)
         .padding(15)
         .size(20)
         .on_submit(Message::PasswordComplete);

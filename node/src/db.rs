@@ -26,6 +26,11 @@ impl Database {
     pub fn delete<K>(&self, key: K) -> Result<()> where K: AsRef<[u8]> {
         self.db.delete(key).map_err(|e| anyhow!("{}",e))
     }
+
+
+
+
+
 }
 
 
