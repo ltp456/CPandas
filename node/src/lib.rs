@@ -258,13 +258,12 @@ fn guild_page_view(state: &State) -> Element<Message> {
         .color(Color::from([0.5, 0.5, 0.5]));
 
 
-    // let tips = tooltip(
-    //     text("错误信息"),
-    //     "info",
-    //     Position::Top,
-    // )
-    //     .gap(10);
-
+    let hint_info = text("hitinfo")
+        .width(Length::Fill)
+        .horizontal_alignment(alignment::Horizontal::Center)
+        .vertical_alignment(alignment::Vertical::Center)
+        .size(30)
+        .color(Color::from([0.1, 0.3, 0.9]));
 
     let input = text_input("Input secret", &state.input_secret, Message::PasswordValueEdited)
         .padding(15)
@@ -285,6 +284,7 @@ fn guild_page_view(state: &State) -> Element<Message> {
         .spacing(15)
         .width(Length::Fill)
         .push(title)
+        .push(hint_info)
         .push(input)
         .push(confirm);
 
