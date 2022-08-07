@@ -1,5 +1,3 @@
-use std::borrow::{Borrow, BorrowMut};
-
 use anyhow::Result;
 use iced::{alignment, Color, Command, Length, Renderer};
 use iced::pure::{Application, button, column, container, Element, row, scrollable, text, text_input, tooltip};
@@ -173,6 +171,12 @@ impl Application for CPandas {
                             state.guild_tips_msg = "password length max is 32".to_string();
                             return Command::none();
                         }
+                        if state.input_secret == "" {
+                            state.guild_tips_msg = "password can`t empty".to_string();
+                            return Command::none();
+                        }
+
+
                         let secret_hash_opt = DB.get_secret_hash().unwrap();
                         // todo
                         let secret_key = utils::get_valid_aes_key(state.input_secret.clone()).unwrap();
@@ -263,24 +267,64 @@ fn home_page_view<'a>(state: &State) -> Element<'a, Message> {
         .size(40)
         .color(Color::from([0.5, 0.5, 0.5]));
 
-    let add = button(text("New")
+    let nvigate = row()
+        .spacing(10)
+        .spacing(5)
         .width(Length::Fill)
-        .horizontal_alignment(alignment::Horizontal::Center)
-        .vertical_alignment(alignment::Vertical::Center)
-        .size(20)
-        .color(Color::from([0.8, 0.1, 0.9])))
-        .width(Length::Fill)
-        .padding(8)
-        .on_press(Message::New);
+        .push(
+            button(text("New")
+                .width(Length::Fill)
+                .horizontal_alignment(alignment::Horizontal::Center)
+                .vertical_alignment(alignment::Vertical::Center)
+                .size(16)
+                .color(Color::from([0.8, 0.1, 0.9])))
+                .width(Length::Fill)
+                .padding(8)
+                .on_press(Message::New)
+        ).push(
+        button(text("Bakup")
+            .width(Length::Fill)
+            .horizontal_alignment(alignment::Horizontal::Center)
+            .vertical_alignment(alignment::Vertical::Center)
+            .size(16)
+            .color(Color::from([0.8, 0.1, 0.9])))
+            .width(Length::Fill)
+            .padding(8)
+            .on_press(Message::New)
+    )
+        .push(
+            button(text("About")
+                .width(Length::Fill)
+                .horizontal_alignment(alignment::Horizontal::Center)
+                .vertical_alignment(alignment::Vertical::Center)
+                .size(16)
+                .color(Color::from([0.8, 0.1, 0.9])))
+                .width(Length::Fill)
+                .padding(8)
+                .on_press(Message::New)
+        );
+
+    // let add = button(text("New")
+    //     .width(Length::Fill)
+    //     .horizontal_alignment(alignment::Horizontal::Center)
+    //     .vertical_alignment(alignment::Vertical::Center)
+    //     .size(20)
+    //     .color(Color::from([0.8, 0.1, 0.9])))
+    //     .width(Length::Fill)
+    //     .padding(8)
+    //     .on_press(Message::New);
 
     let items: Element<_> = state.items.iter()
         .enumerate()
         .fold(column()
                   .spacing(20)
+                  .padding(10)
               , |column, (i, item)| {
                 let mut secret_info = "******".to_string();
+                let mut query_status_inf = "show".to_string();
                 if item.status == 1 {
                     secret_info = item.secret.clone();
+                    query_status_inf = "hidden".to_string();
                 }
                 column.push(
                     row()
@@ -313,7 +357,7 @@ fn home_page_view<'a>(state: &State) -> Element<'a, Message> {
                         )
                         .push(
                             button(
-                                text("info")
+                                text(&query_status_inf)
                                     .width(Length::Fill)
                                     .horizontal_alignment(alignment::Horizontal::Center)
                                     .vertical_alignment(alignment::Vertical::Center)
@@ -324,7 +368,7 @@ fn home_page_view<'a>(state: &State) -> Element<'a, Message> {
                                 .on_press(Message::DecodeItem(i))
                         )
                         .push(button(
-                            text("del")
+                            text("delete")
                                 .width(Length::Fill)
                                 .horizontal_alignment(alignment::Horizontal::Center)
                                 .vertical_alignment(alignment::Vertical::Center)
@@ -343,7 +387,7 @@ fn home_page_view<'a>(state: &State) -> Element<'a, Message> {
     let content = column()
         .spacing(20)
         .push(title)
-        .push(add)
+        .push(nvigate)
         .push(items);
 
     scrollable(container(content)
@@ -361,15 +405,6 @@ fn new_page_view<'a>(state: &State) -> Element<'a, Message> {
         .size(30)
         .color(Color::from([0.5, 0.5, 0.5]));
 
-    let close = button(text("Close")
-        .width(Length::Fill)
-        .horizontal_alignment(alignment::Horizontal::Center)
-        .vertical_alignment(alignment::Vertical::Center)
-        .size(20)
-        .color(Color::from([0.8, 0.1, 0.9])))
-        .width(Length::Fill)
-        .padding(8)
-        .on_press(Message::CloseNew);
 
     let input = column()
         .spacing(10)
@@ -388,30 +423,37 @@ fn new_page_view<'a>(state: &State) -> Element<'a, Message> {
                 .padding(15)
                 .size(20)
         )
-        .push(
-            button(
-                text("save")
-                    .size(20)
-                    .width(Length::Fill)
-                    .horizontal_alignment(alignment::Horizontal::Center)
-                    .vertical_alignment(alignment::Vertical::Center)
-                    .color(Color::from([0.8, 0.3, 0.9]))
-            )
-                .width(Length::Fill)
-                .padding(15)
-                .on_press(Message::NewItemComplete)
-        )
         .padding(15)
         .width(Length::Fill);
 
-    let content = row()
+
+    let button_list = row()
         .spacing(20)
-        .push(title)
-        .push(close);
+        .padding(20)
+        .width(Length::Fill)
+        .push(button(text("Close")
+            .width(Length::Fill)
+            .horizontal_alignment(alignment::Horizontal::Center)
+            .vertical_alignment(alignment::Vertical::Center)
+            .size(20)
+            .color(Color::from([0.8, 0.1, 0.9])))
+            .width(Length::Fill)
+            .padding(8)
+            .on_press(Message::CloseNew))
+        .push(button(text("Save")
+            .width(Length::Fill)
+            .horizontal_alignment(alignment::Horizontal::Center)
+            .vertical_alignment(alignment::Vertical::Center)
+            .size(20)
+            .color(Color::from([0.8, 0.1, 0.9])))
+            .width(Length::Fill)
+            .padding(8)
+            .on_press(Message::NewItemComplete));
     let input_table = column()
         .spacing(10)
-        .push(content)
-        .push(input);
+        .push(title)
+        .push(input)
+        .push(button_list);
 
     scrollable(container(input_table)
         .width(Length::Fill)
