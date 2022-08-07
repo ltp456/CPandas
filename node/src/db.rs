@@ -13,6 +13,9 @@ pub struct Database {
 }
 
 impl Database {
+
+
+
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         let rocks_db = DB::open_default(path)?;
         let database = Database { db: rocks_db };
@@ -142,6 +145,7 @@ mod tests {
             secret: "abcd1234".to_string(),
             desc: "email".to_string(),
             status: 0,
+            nonce: "".to_string()
         };
         db.put_item(&item).unwrap();
         println!("add item: {:?}", uuid);
@@ -160,7 +164,7 @@ mod tests {
         }
 
 
-       // db.del_item(&uuid).unwrap();
+        // db.del_item(&uuid).unwrap();
         let items = db.get_item_list().unwrap();
         if let Some(list) = items {
             for i in list {
@@ -173,12 +177,12 @@ mod tests {
 
 
     #[test]
-    fn secret_hash(){
-        let db = Database::new("./db").unwrap();
+    fn secret_hash() {
+        let db = Database::new(".db").unwrap();
         db.put_secret_hash("ddddd").unwrap();
         let option = db.get_secret_hash().unwrap().unwrap();
         let result = String::from_utf8(option).unwrap();
-        println!("{:?}",result);
+        println!("{:?}", result);
     }
 
 

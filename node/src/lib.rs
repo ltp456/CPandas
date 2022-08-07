@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use db::Database;
+use types::{*};
 use utils::MemData;
 
 mod db;
@@ -16,56 +17,11 @@ mod constants;
 mod types;
 mod utils;
 
-const KEYS: &str = "KEYS";
 
 static DB: Lazy<Database> = Lazy::new(|| {
     let database = Database::new(".db").unwrap();
-    if database.get(KEYS).unwrap().is_none() {
-        let keys: Vec<&str> = Vec::new();
-        database.put(KEYS, serde_json::to_string(&keys).unwrap());
-    }
     database
 });
-
-
-fn db_item_list() -> Result<Vec<Item>> {
-    let data = DB.get(KEYS).unwrap().unwrap();
-    let keys: Vec<&str> = serde_json::from_slice(&data).unwrap();
-    let mut items: Vec<Item> = Vec::new();
-    for key in keys {
-        let k = DB.get(key).unwrap().unwrap();
-        let item: Item = serde_json::from_slice(&k).unwrap();
-        items.push(item);
-    };
-    Ok(items)
-}
-
-
-fn db_save_item(uid: &str, item: &str) -> Result<()> {
-    let data = DB.get(KEYS).unwrap().unwrap();
-    let mut keys: Vec<&str> = serde_json::from_slice(&data).unwrap();
-    keys.push(uid);
-
-    let new_data = serde_json::to_string(&keys).unwrap();
-    DB.put(KEYS, new_data).unwrap();
-    DB.put(uid, item)
-}
-
-
-fn db_del_item(uid: &str) -> Result<()> {
-    let data = DB.get(KEYS).unwrap().unwrap();
-    let keys: Vec<&str> = serde_json::from_slice(&data).unwrap();
-    let mut new_key: Vec<&str> = Vec::new();
-    for key in keys {
-        if key != uid {
-            new_key.push(key)
-        }
-    }
-    let new = serde_json::to_string(&new_key).unwrap();
-    DB.put(KEYS, new).unwrap();
-
-    DB.delete(uid)
-}
 
 
 #[derive(Debug)]
@@ -73,43 +29,6 @@ pub enum CPandas {
     HomePage(State),
     NewPage(State),
     Guild(State),
-}
-
-
-#[derive(Debug, Clone)]
-pub struct State {
-    items: Vec<Item>,
-    input_item: InputItem,
-    input_secret: String,
-    secret :MemData
-    // todo
-}
-
-
-#[derive(Debug, Clone, Default)]
-pub struct InputItem {
-    pub account_value: String,
-    pub secret_value: String,
-    pub desc_value: String,
-}
-
-
-impl InputItem {
-    pub fn clear(&mut self) {
-        self.account_value = "".to_string();
-        self.secret_value = "".to_string();
-        self.desc_value = "".to_string();
-    }
-}
-
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-pub struct Item {
-    id: String,
-    account: String,
-    secret: String,
-    desc: String,
-    status: usize,
 }
 
 
@@ -136,15 +55,29 @@ impl Application for CPandas {
 
     fn new(flags: Self::Flags) -> (Self, Command<Self::Message>) {
         log::debug!("new..");
-        // let keys:Vec<&str> = Vec::new();
-        // DB.put(KEYS,serde_json::to_string(&keys).unwrap()).unwrap();
-        let item_list = db_item_list().unwrap();
+        let tmp_items = DB.get_item_list();
+        let mut items: Vec<Item> = Vec::new();
+        if let Ok(item_list) = tmp_items {
+            if let Some(list) = item_list {
+                items = list
+            }
+        };
+
+        let mut guild_tips_info = String::new();
+        let secret_hash_opt = DB.get_secret_hash().unwrap();
+        if let Some(secret_hash) = secret_hash_opt {
+            guild_tips_info = "please input your password".to_string();
+        } else {
+            guild_tips_info = "please setting a new password".to_string();
+        }
+
         (
             CPandas::Guild(State {
-                items: item_list,
+                items,
                 input_item: InputItem::default(),
                 input_secret: "".to_string(),
-                secret: Default::default()
+                secret: Default::default(),
+                guild_tips_msg: guild_tips_info,
             }),
             Command::none()
         )
@@ -174,19 +107,22 @@ impl Application for CPandas {
                     }
                     Message::NewItemComplete => {
                         let uuid = Uuid::new_v4().to_string();
+
+                        let (ciphertext, nonce) = utils::aes256_encode(state.input_item.secret_value.as_bytes(), state.input_secret.as_bytes()).unwrap();
                         let item = Item {
                             id: uuid.clone(),
                             account: state.input_item.account_value.clone(),
-                            secret: state.input_item.secret_value.clone(),
+                            secret: hex::encode(ciphertext),
                             desc: state.input_item.desc_value.clone(),
                             status: 0,
+                            nonce: hex::encode(nonce),
                         };
-                        db_save_item(&uuid, &serde_json::to_string(&item).unwrap()).unwrap();
+
+                        DB.put_item(&item).unwrap();
                         state.items.push(item);
                         state.input_item.clear();
                         log::debug!("input complete")
                     }
-                    Message::New => {}
                     _ => {}
                 }
             }
@@ -197,12 +133,28 @@ impl Application for CPandas {
                     }
                     Message::DelItem(index) => {
                         let x = state.items.get(index).unwrap();
-                        db_del_item(&x.id);
+                        DB.del_item(&x.id).unwrap();
                         state.items.remove(index);
                     }
                     Message::DecodeItem(index) => {
                         log::debug!("decode info");
-                        state.items.get_mut(index).unwrap().secret = "decode".to_string();
+                        let item = state.items.get_mut(index).unwrap();
+                        if item.status == 0 {
+                            let password = utils::aes256_decode(&hex::decode(&item.secret).unwrap(),
+                                                                state.input_secret.as_bytes(),
+                                                                &hex::decode(&item.nonce).unwrap()).unwrap();
+                            item.secret = String::from_utf8(password).unwrap();
+                            item.status = 1;
+                        } else {
+                            let secret = utils::aes256_encode_with_nonce(
+                                item.secret.as_bytes(),
+                                state.input_secret.as_bytes(),
+                                &hex::decode(&item.nonce).unwrap(),
+                            ).unwrap();
+                            item.secret = hex::encode(secret);
+                            item.status = 0;
+                        }
+
                         // check
                     }
                     _ => {}
@@ -217,18 +169,24 @@ impl Application for CPandas {
                     }
                     Message::PasswordComplete => {
                         log::debug!("password completed");
-                        let hash = DB.get(constants::SECRET_HASH_KEY).unwrap();
-                        if hash.is_none() {
-                            let secret_hash = utils::sha256(state.input_secret.as_bytes()).unwrap();
-                            DB.put(constants::SECRET_HASH_KEY, secret_hash).unwrap();
-                        } else {
-                            let secret_hash = utils::sha256(state.input_secret.as_bytes()).unwrap();
-                            if String::from_utf8(hash.unwrap()).unwrap() == secret_hash {
-                                log::info!("secret hash is correct");
-                                    *self = CPandas::HomePage(state.clone());
+                        if state.input_secret.len() > 32 {
+                            state.guild_tips_msg = "password length max is 32".to_string();
+                            return Command::none();
+                        }
+                        let secret_hash_opt = DB.get_secret_hash().unwrap();
+                        // todo
+                        let secret_key = utils::get_valid_aes_key(state.input_secret.clone()).unwrap();
+                        state.input_secret = secret_key.clone();
+                        let input_secret_hash = utils::sha256(secret_key.as_bytes()).unwrap();
+                        if let Some(secret_hash) = secret_hash_opt {
+                            if input_secret_hash == String::from_utf8(secret_hash).unwrap() {
+                                *self = CPandas::HomePage(state.clone());
                             } else {
-                                log::error!("secret hash error: {:?} ",state.input_secret);
+                                state.guild_tips_msg = "password verify error,plase retry again".to_string();
                             }
+                        } else {
+                            DB.put_secret_hash(input_secret_hash).unwrap();
+                            *self = CPandas::HomePage(state.clone());
                         }
                     }
                     _ => {}
@@ -258,12 +216,12 @@ fn guild_page_view(state: &State) -> Element<Message> {
         .color(Color::from([0.5, 0.5, 0.5]));
 
 
-    let hint_info = text("hitinfo")
+    let hint_info = text(&state.guild_tips_msg)
         .width(Length::Fill)
-        .horizontal_alignment(alignment::Horizontal::Center)
+        .horizontal_alignment(alignment::Horizontal::Left)
         .vertical_alignment(alignment::Vertical::Center)
-        .size(30)
-        .color(Color::from([0.1, 0.3, 0.9]));
+        .size(15)
+        .color(Color::from([0.9, 0.3, 0.9]));
 
     let input = text_input("Input secret", &state.input_secret, Message::PasswordValueEdited)
         .padding(15)
@@ -320,6 +278,10 @@ fn home_page_view<'a>(state: &State) -> Element<'a, Message> {
         .fold(column()
                   .spacing(20)
               , |column, (i, item)| {
+                let mut secret_info = "******".to_string();
+                if item.status == 1 {
+                    secret_info = item.secret.clone();
+                }
                 column.push(
                     row()
                         .spacing(10)
@@ -334,7 +296,7 @@ fn home_page_view<'a>(state: &State) -> Element<'a, Message> {
                                 .size(20)
                         )
                         .push(
-                            text(item.secret.as_str())
+                            text(&secret_info)
                                 .width(Length::Fill)
                                 .color(Color::from([0.9, 0.1, 0.1]))
                                 .horizontal_alignment(alignment::Horizontal::Center)

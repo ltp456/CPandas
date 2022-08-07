@@ -6,8 +6,8 @@ use rand::Rng;
 use self_encryption::{bytes::Bytes, ChunkInfo, DataMap, decrypt_full_set, encrypt, EncryptedChunk};
 use sha2::{Digest, Sha256};
 
-const AES_256_KEY_NUM: u32 = 32;
-const AES_256_NONCE_NUM: u32 = 12;
+const AES_256_KEY_NUM: usize = 32;
+const AES_256_NONCE_NUM: usize = 12;
 
 // todo find best way
 const MIN_ENCRYPT_BYTE_NUMS: usize = 3072;
@@ -66,12 +66,24 @@ pub fn aes256_encode(msg: &[u8], key: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
 }
 
 
+
+pub fn aes256_encode_with_nonce(msg: &[u8], key: &[u8],nonce:&[u8]) -> Result<Vec<u8>> {
+    let key = Key::from_slice(key);
+    let cipher = Aes256Gcm::new(key);
+    // 96-bits; unique per message, 12 byte
+    let nonce_array = Nonce::from_slice(nonce);
+    let ciphertext = cipher.encrypt(nonce_array, msg).map_err(|e| anyhow!("{}",e))?;
+    Ok(ciphertext)
+}
+
+
+
 pub fn aes256_key() -> Result<Vec<u8>> {
     gen_rand_key(AES_256_KEY_NUM)
 }
 
 
-pub fn gen_rand_key(num: u32) -> Result<Vec<u8>> {
+pub fn gen_rand_key(num: usize) -> Result<Vec<u8>> {
     let mut rng = rand::thread_rng();
     let mut key = Vec::<u8>::new();
     for _ in 0..num {
@@ -80,6 +92,23 @@ pub fn gen_rand_key(num: u32) -> Result<Vec<u8>> {
     }
     Ok(key)
 }
+
+
+pub fn get_valid_aes_key(key: String) -> Result<String> {
+    let key_vec = key.into_bytes();
+    let mut new_key: Vec<u8> = vec![];
+    let time =  AES_256_KEY_NUM/ key_vec.len();
+    let nums = AES_256_KEY_NUM % key_vec.len();
+    for _ in 0..time {
+        new_key.append(&mut key_vec.clone());
+    }
+    for i in 0..nums {
+        new_key.push(*key_vec.get(i).unwrap());
+    }
+    let result = String::from_utf8(new_key)?;
+    Ok(result)
+}
+
 
 
 
@@ -153,6 +182,15 @@ impl MemData {
 mod test {
     use std::string::String;
     use super::*;
+
+
+    #[test]
+    fn test_valid_aes_key(){
+        let new_key = get_valid_aes_key("abcd1234".to_string()).unwrap();
+        println!("{}",new_key);
+
+    }
+
 
     #[test]
     fn test() {
