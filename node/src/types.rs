@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -45,10 +47,23 @@ pub struct Item {
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct Export {
-    pub version: i32,
+    pub version: String,
     pub desc: String,
     pub time: String,
     pub content: String,
+}
+
+impl Export {
+    pub fn new(version: String, content: String, desc: String) -> Self {
+        use chrono::prelude::Local;
+        let time = Local::now().to_string();
+        return Export {
+            version,
+            desc,
+            time,
+            content,
+        };
+    }
 }
 
 

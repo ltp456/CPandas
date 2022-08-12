@@ -1,7 +1,9 @@
 use anyhow::Result;
+use copypasta::{ClipboardContext, ClipboardProvider};
 use iced::{alignment, Color, Command, Length, Renderer};
 use iced::pure::{Application, button, column, container, Element, row, scrollable, text, text_input, tooltip};
 use iced::tooltip::Position;
+use log::kv::ToKey;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -43,6 +45,9 @@ pub enum Message {
     DescValueEdited(String),
     NewItemComplete,
     Saved,
+    Bakup,
+    Import,
+    About,
 }
 
 impl Application for CPandas {
@@ -129,6 +134,31 @@ impl Application for CPandas {
                     Message::New => {
                         *self = CPandas::NewPage(state.clone());
                     }
+
+                    Message::Bakup => {
+                        let result = DB.get_item_list().unwrap();
+                        if let Some(list) = result {
+                            let bakup_res = serde_json::to_string(&list).unwrap();
+                            let hex_bak = hex::encode(bakup_res);
+                            let export = Export::new("1".to_string(), hex_bak, "".to_string());
+                            let export = serde_json::to_string(&export).unwrap();
+                            let mut ctx = ClipboardContext::new().unwrap();
+                            ctx.set_contents(export).unwrap();
+                        }
+                    }
+
+                    Message::Import => {
+                        let mut ctx = ClipboardContext::new().unwrap();
+                        let content = ctx.get_contents().unwrap();
+                        let export: Export = serde_json::from_slice(content.as_bytes()).unwrap();
+                        let hex_data = hex::decode(export.content).unwrap();
+                        let list: Vec<Item> = serde_json::from_slice(&hex_data).unwrap();
+                        for item in list {
+                            DB.put_item(&item).unwrap();
+                        }
+                        log::debug!("import ok")
+                    }
+
                     Message::DelItem(index) => {
                         let x = state.items.get(index).unwrap();
                         DB.del_item(&x.id).unwrap();
@@ -290,7 +320,17 @@ fn home_page_view<'a>(state: &State) -> Element<'a, Message> {
             .color(Color::from([0.8, 0.1, 0.9])))
             .width(Length::Fill)
             .padding(8)
-            .on_press(Message::New)
+            .on_press(Message::Bakup)
+    ).push(
+        button(text("Import")
+            .width(Length::Fill)
+            .horizontal_alignment(alignment::Horizontal::Center)
+            .vertical_alignment(alignment::Vertical::Center)
+            .size(16)
+            .color(Color::from([0.8, 0.1, 0.9])))
+            .width(Length::Fill)
+            .padding(8)
+            .on_press(Message::Import)
     )
         .push(
             button(text("About")
@@ -301,18 +341,9 @@ fn home_page_view<'a>(state: &State) -> Element<'a, Message> {
                 .color(Color::from([0.8, 0.1, 0.9])))
                 .width(Length::Fill)
                 .padding(8)
-                .on_press(Message::New)
+                .on_press(Message::About)
         );
 
-    // let add = button(text("New")
-    //     .width(Length::Fill)
-    //     .horizontal_alignment(alignment::Horizontal::Center)
-    //     .vertical_alignment(alignment::Vertical::Center)
-    //     .size(20)
-    //     .color(Color::from([0.8, 0.1, 0.9])))
-    //     .width(Length::Fill)
-    //     .padding(8)
-    //     .on_press(Message::New);
 
     let items: Element<_> = state.items.iter()
         .enumerate()

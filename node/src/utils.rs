@@ -14,6 +14,11 @@ const MIN_ENCRYPT_BYTE_NUMS: usize = 3072;
 
 
 
+
+
+
+
+
 pub fn sha256(msg: &[u8]) -> Result<String> {
     let hash = Sha256::digest(msg);
     let hash_hex = hex::encode(hash);
@@ -181,6 +186,7 @@ impl MemData {
 #[cfg(test)]
 mod test {
     use std::string::String;
+    use copypasta::{ClipboardContext, ClipboardProvider};
     use super::*;
 
 
@@ -208,6 +214,20 @@ mod test {
         println!("decode: {:?}", String::from_utf8(plain_text));
 
     }
+
+
+    #[test]
+    fn cliped(){
+        pub fn Cliped() {
+            let mut ctx = ClipboardContext::new().unwrap();
+            println!("{:?}", ctx.get_contents());
+            ctx.set_contents("some string".to_owned()).unwrap();
+        }
+
+    }
+
+
+
 
 
     #[test]
