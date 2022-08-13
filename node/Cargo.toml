@@ -6,7 +6,8 @@ edition = "2021"
 
 [dependencies]
 
-iced = { version = "0.4", features = ["async-std", "debug", "default_system_font", "pure"] }
+iced = { version = "0.4.2", features = ["async-std", "debug", "default_system_font", "pure"] }
+iced_style = "0.4.0"
 serde = { version = "1.0.140", features = ["derive"] }
 serde_json = { version = "1.0.82" }
 once_cell = { version = "1.13.0" }

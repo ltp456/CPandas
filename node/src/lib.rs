@@ -78,7 +78,7 @@ impl Application for CPandas {
             CPandas::Guild(State {
                 items,
                 input_item: InputItem::default(),
-                input_secret: "".to_string(),
+                input_secret: "abcd1234".to_string(),
                 secret: Default::default(),
                 guild_tips_msg: guild_tips_info,
             }),
@@ -268,10 +268,11 @@ fn guild_page_view(state: &State) -> Element<Message> {
             .width(Length::Fill)
             .horizontal_alignment(alignment::Horizontal::Center)
             .vertical_alignment(alignment::Vertical::Center)
-            .color(Color::from([0.8, 0.3, 0.9])))
+            .color(Color::from([0.1, 0.3, 0.9])))
         .width(Length::Fill)
         .padding(10)
         .on_press(Message::PasswordComplete);
+
     let content = column()
         .spacing(15)
         .width(Length::Fill)
