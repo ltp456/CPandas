@@ -1,14 +1,10 @@
-use iced::{Settings, window};
-use iced::pure::Application;
-use log::LevelFilter;
+use node::MyApp;
 
-fn main() -> iced::Result {
-    env_logger::builder().filter(Some("node"),LevelFilter::Trace).init();
-    node::CPandas::run(Settings {
-        window: window::Settings {
-            size: (600, 600),
-            ..window::Settings::default()
-        },
-        ..Settings::default()
-    })
+fn main() {
+    let options = eframe::NativeOptions::default();
+    eframe::run_native(
+        "CPandas",
+        options,
+        Box::new(|_cc| Box::new(MyApp::default())),
+    );
 }

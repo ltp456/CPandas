@@ -4,7 +4,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::MemData;
+use super::utils::MemData;
 
 #[derive(Debug, Clone)]
 pub struct State {
