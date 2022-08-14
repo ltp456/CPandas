@@ -35,6 +35,7 @@ enum State {
 pub struct CPandas {
     items: Vec<Item>,
     input_secret: String,
+    input_secret_tips: String,
     new_temp_item: InputItem,
     state: State,
 
@@ -53,6 +54,7 @@ impl CPandas {
         Self {
             items,
             input_secret: "abcd1234".to_string(),
+            input_secret_tips: "".to_string(),
             new_temp_item: Default::default(),
             state: State::Guild,
         }
@@ -77,20 +79,25 @@ impl eframe::App for CPandas {
 
 
 fn guild_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
+    ui.add_space(10.);
+
+    let secret_hash_opt = DB.get_secret_hash().unwrap();
+    if cp.input_secret_tips == "" {
+        cp.input_secret_tips = "please input  password".to_string();
+    }
+
+    ui.label(format!("tips: {}",&cp.input_secret_tips));
     ui.horizontal(|ui| {
-        ui.label("Input Secret: ");
+        ui.label("Input Password: ");
         ui.text_edit_singleline(&mut cp.input_secret);
     });
 
-
     if ui.button("Confirm").clicked() {
         log::debug!("confirm submit");
-
         if cp.input_secret == "" {
+            cp.input_secret_tips = "password can`t empty".to_string();
             return;
         }
-
-
         let secret_hash_opt = DB.get_secret_hash().unwrap();
         let secret_key = utils::get_valid_aes_key(cp.input_secret.clone()).unwrap();
         cp.input_secret = secret_key.clone();
@@ -99,7 +106,8 @@ fn guild_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
             if input_secret_hash == String::from_utf8(secret_hash).unwrap() {
                 cp.state = State::Home;
             } else {
-                log::debug!("password verify fail");
+                cp.input_secret_tips = "password not correct".to_string();
+                cp.input_secret = "".to_string();
             }
         } else {
             DB.put_secret_hash(input_secret_hash).unwrap();
@@ -114,13 +122,14 @@ fn home_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
         let result = DB.get_item_list().unwrap();
         for index in 0..cp.items.len() {
             let item = cp.items.get(index).unwrap();
+            log::debug!("{:?}, {:?}",index,item.id);
             ui.horizontal(|ui| {
                 ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
                     ui.add_space(10.);
-                    ui.add(Label::new(format!("{}", index)));
-                    ui.add(Label::new(&item.account));
-                    ui.add(Hyperlink::new(&item.secret));
-                    ui.add(Hyperlink::new(&item.desc));
+                    ui.add(Label::new(format!("index: {}", index)));
+                    ui.add(Label::new(format!("Name: {}",&item.account)));
+                    ui.add(Hyperlink::new(format!("Secret: {}",&item.secret)));
+                    ui.add(Hyperlink::new(format!("Desc: {}",&item.desc)));
                     ui.add_space(10.);
                 });
                 // controls
@@ -135,37 +144,27 @@ fn home_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
                 });
             });
         }
+        ui.add_space(80.);
     });
 }
 
 
 fn detail_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui, index: usize) {
     let item = cp.items.get(index).unwrap();
-    ui.label(format!("{:?}", index));
-    ui.label(&item.account);
-    ui.label(&item.secret);
-    ui.label(&item.desc);
-    let item = item.clone();
+    let password = utils::aes256_decode(&hex::decode(&item.secret).unwrap(),
+                                        cp.input_secret.clone().as_bytes(),
+                                        &hex::decode(&item.nonce).unwrap()).unwrap();
+
+    let decode_value = String::from_utf8(password).unwrap();
+    ui.label(format!("index: {:?}", index));
+    ui.label(format!("Name: {}",&item.account));
+    ui.label(format!("Secret: {}",decode_value));
+    ui.label(format!("Desc: {}",&item.desc));
+
+    let id = &item.id.clone();
     ui.horizontal(|ui| {
-        if ui.button("View").clicked() {
-            if item.status == 0 {
-                let password = utils::aes256_decode(&hex::decode(&item.secret).unwrap(),
-                                                    cp.input_secret.clone().as_bytes(),
-                                                    &hex::decode(&item.nonce).unwrap()).unwrap();
-
-                println!("{:?}", String::from_utf8(password));
-            } else {
-                let secret = utils::aes256_encode_with_nonce(
-                    item.secret.as_bytes(),
-                    cp.input_secret.as_bytes(),
-                    &hex::decode(&item.nonce).unwrap(),
-                ).unwrap();
-                println!("{:?}", String::from_utf8(secret));
-            }
-        }
-
         if ui.button("Delete").clicked() {
-            DB.del_item(&item.id).unwrap();
+            DB.del_item(id).unwrap();
             cp.items.remove(index);
             cp.state = State::Home;
         }
@@ -278,12 +277,12 @@ fn render_bottom_panel(ctx: &egui::Context) {
     TopBottomPanel::bottom("footer").show(ctx, |ui| {
         ui.vertical_centered(|ui| {
             ui.add_space(10.);
-            ui.add(Label::new("API source: newsapi.org"));
             ui.add(
-                Hyperlink::new("https://github.com/emilk/egui")
+                Hyperlink::new("An application written with Rust that encrypts sensitive information")
             );
+            ui.add_space(3.);
             ui.add(
-                Hyperlink::new("https://github.com/creativcoder/headlines")
+            Hyperlink::new("https://github.com/ltp456/CPandas")
             );
             ui.add_space(10.);
         })
