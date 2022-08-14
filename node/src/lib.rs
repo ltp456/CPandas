@@ -53,7 +53,7 @@ impl CPandas {
 
         Self {
             items,
-            input_secret: "abcd1234".to_string(),
+            input_secret: "".to_string(),
             input_secret_tips: "".to_string(),
             new_temp_item: Default::default(),
             state: State::Guild,
@@ -86,7 +86,7 @@ fn guild_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
         cp.input_secret_tips = "please input  password".to_string();
     }
 
-    ui.label(format!("tips: {}",&cp.input_secret_tips));
+    ui.label(format!("tips: {}", &cp.input_secret_tips));
     ui.horizontal(|ui| {
         ui.label("Input Password: ");
         ui.text_edit_singleline(&mut cp.input_secret);
@@ -127,9 +127,9 @@ fn home_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
                 ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
                     ui.add_space(10.);
                     ui.add(Label::new(format!("index: {}", index)));
-                    ui.add(Label::new(format!("Name: {}",&item.account)));
-                    ui.add(Hyperlink::new(format!("Secret: {}",&item.secret)));
-                    ui.add(Hyperlink::new(format!("Desc: {}",&item.desc)));
+                    ui.add(Label::new(format!("Name: {}", &item.account)));
+                    ui.add(Hyperlink::new(format!("Secret: {}", &item.secret)));
+                    ui.add(Label::new(format!("Desc: {}", &item.desc)));
                     ui.add_space(10.);
                 });
                 // controls
@@ -157,9 +157,9 @@ fn detail_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui, index: usize)
 
     let decode_value = String::from_utf8(password).unwrap();
     ui.label(format!("index: {:?}", index));
-    ui.label(format!("Name: {}",&item.account));
-    ui.label(format!("Secret: {}",decode_value));
-    ui.label(format!("Desc: {}",&item.desc));
+    ui.label(format!("Name: {}", &item.account));
+    ui.label(format!("Secret: {}", decode_value));
+    ui.label(format!("Desc: {}", &item.desc));
 
     let id = &item.id.clone();
     ui.horizontal(|ui| {
@@ -277,12 +277,14 @@ fn render_bottom_panel(ctx: &egui::Context) {
     TopBottomPanel::bottom("footer").show(ctx, |ui| {
         ui.vertical_centered(|ui| {
             ui.add_space(10.);
+            ui.add(Hyperlink::new("Crypto Pandas"));
+            ui.add_space(3.);
             ui.add(
                 Hyperlink::new("An application written with Rust that encrypts sensitive information")
             );
             ui.add_space(3.);
             ui.add(
-            Hyperlink::new("https://github.com/ltp456/CPandas")
+                Hyperlink::new("https://github.com/ltp456/CPandas")
             );
             ui.add_space(10.);
         })
