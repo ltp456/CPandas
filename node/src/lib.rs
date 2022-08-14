@@ -29,6 +29,7 @@ enum State {
     Guild,
     Home,
     New,
+    Detail(usize),
 }
 
 pub struct CPandas {
@@ -36,6 +37,7 @@ pub struct CPandas {
     input_secret: String,
     new_temp_item: InputItem,
     state: State,
+
 }
 
 impl CPandas {
@@ -66,6 +68,7 @@ impl eframe::App for CPandas {
                 State::Guild => { guild_view(self, ctx, ui) }
                 State::Home => { home_view(self, ctx, ui) }
                 State::New => { new_view(self, ctx, ui) }
+                State::Detail(index) => { detail_view(self, ctx, ui, index) }
             }
         });
         render_bottom_panel(ctx)
@@ -78,6 +81,8 @@ fn guild_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
         ui.label("Input Secret: ");
         ui.text_edit_singleline(&mut cp.input_secret);
     });
+
+
     if ui.button("Confirm").clicked() {
         log::debug!("confirm submit");
 
@@ -104,46 +109,15 @@ fn guild_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
 }
 
 fn home_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
-    ui.horizontal(|ui| {
-        if ui.button("New").clicked() {
-            log::debug!("new item");
-            cp.state = State::New;
-        }
-        if ui.button("Bakup").clicked() {
-            let result = DB.get_item_list().unwrap();
-            if let Some(list) = result {
-                let bakup_res = serde_json::to_string(&list).unwrap();
-                let hex_bak = hex::encode(bakup_res);
-                let export = Export::new("1".to_string(), hex_bak, "".to_string());
-                let export = serde_json::to_string(&export).unwrap();
-                let mut ctx = ClipboardContext::new().unwrap();
-                ctx.set_contents(export).unwrap();
-            }
-        }
-        if ui.button("Import").clicked() {
-            let mut ctx = ClipboardContext::new().unwrap();
-            let content = ctx.get_contents().unwrap();
-            let export: Export = serde_json::from_slice(content.as_bytes()).unwrap();
-            let hex_data = hex::decode(export.content).unwrap();
-            let list: Vec<Item> = serde_json::from_slice(&hex_data).unwrap();
-            for item in list {
-                DB.put_item(&item).unwrap();
-                cp.items.push(item)
-            }
-            log::debug!("import ok")
-        }
-        if ui.button("About").clicked() {
-            log::debug!("new item");
-        }
-    });
-
-    navigate_menu_view(ui);
-
+    navigate_menu_view(cp, ui, ctx);
     ScrollArea::vertical().show(ui, |ui| {
-        for item in &cp.items {
+        let result = DB.get_item_list().unwrap();
+        for index in 0..cp.items.len() {
+            let item = cp.items.get(index).unwrap();
             ui.horizontal(|ui| {
                 ui.with_layout(Layout::top_down(Align::LEFT), |ui| {
                     ui.add_space(10.);
+                    ui.add(Label::new(format!("{}", index)));
                     ui.add(Label::new(&item.account));
                     ui.add(Hyperlink::new(&item.secret));
                     ui.add(Hyperlink::new(&item.desc));
@@ -151,10 +125,52 @@ fn home_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
                 });
                 // controls
                 ui.with_layout(Layout::right_to_left(), |ui| {
-                    if ui.add(Button::new("❌")).clicked() {}
-                    if ui.add(Button::new("🔄")).clicked() {}
+                    // let delete_bt = Button::new("Delete");
+                    // if ui.add(delete_bt).clicked() {
+                    //     DB.del_item(&item.id).unwrap();
+                    // }
+                    if ui.add(Button::new("View")).clicked() {
+                        cp.state = State::Detail(index);
+                    }
                 });
             });
+        }
+    });
+}
+
+
+fn detail_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui, index: usize) {
+    let item = cp.items.get(index).unwrap();
+    ui.label(format!("{:?}", index));
+    ui.label(&item.account);
+    ui.label(&item.secret);
+    ui.label(&item.desc);
+    let item = item.clone();
+    ui.horizontal(|ui| {
+        if ui.button("View").clicked() {
+            if item.status == 0 {
+                let password = utils::aes256_decode(&hex::decode(&item.secret).unwrap(),
+                                                    cp.input_secret.clone().as_bytes(),
+                                                    &hex::decode(&item.nonce).unwrap()).unwrap();
+
+                println!("{:?}", String::from_utf8(password));
+            } else {
+                let secret = utils::aes256_encode_with_nonce(
+                    item.secret.as_bytes(),
+                    cp.input_secret.as_bytes(),
+                    &hex::decode(&item.nonce).unwrap(),
+                ).unwrap();
+                println!("{:?}", String::from_utf8(secret));
+            }
+        }
+
+        if ui.button("Delete").clicked() {
+            DB.del_item(&item.id).unwrap();
+            cp.items.remove(index);
+            cp.state = State::Home;
+        }
+        if ui.button("Close").clicked() {
+            cp.state = State::Home;
         }
     });
 }
@@ -202,21 +218,47 @@ fn new_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
 }
 
 
-fn navigate_menu_view(ui: &mut Ui) {
+fn navigate_menu_view(cp: &mut CPandas, ui: &mut Ui, ctx: &egui::Context) {
     // define a TopBottomPanel widget
     ui.add_space(10.);
     egui::menu::bar(ui, |ui| {
         // logo
         ui.with_layout(Layout::left_to_right(), |ui| {
-            if ui.add(Button::new("📓")).clicked() {}
+            if ui.add(Button::new("Home")).clicked() {}
         });
         // controls
         ui.with_layout(Layout::right_to_left(), |ui| {
-            if ui.add(Button::new("❌")).clicked() {}
+            let export_bt = ui.button("Export").on_hover_text("Export to Clipboard");
+            if export_bt.clicked() {
+                let result = DB.get_item_list().unwrap();
+                if let Some(list) = result {
+                    let bakup_res = serde_json::to_string(&list).unwrap();
+                    let hex_bak = hex::encode(bakup_res);
+                    let export = Export::new("1".to_string(), hex_bak, "".to_string());
+                    let export = serde_json::to_string(&export).unwrap();
+                    let mut ctx = ClipboardContext::new().unwrap();
+                    ctx.set_contents(export).unwrap();
+                }
+            }
+            let import_bt = ui.button("Import").on_hover_text("Import from Clipboard");
 
-            if ui.add(Button::new("🔄")).clicked() {}
-
-            if ui.add(Button::new("🌙")).clicked() {}
+            if import_bt.clicked() {
+                let mut ctx = ClipboardContext::new().unwrap();
+                let content = ctx.get_contents().unwrap();
+                let export: Export = serde_json::from_slice(content.as_bytes()).unwrap();
+                let hex_data = hex::decode(export.content).unwrap();
+                let list: Vec<Item> = serde_json::from_slice(&hex_data).unwrap();
+                for item in list {
+                    DB.put_item(&item).unwrap();
+                    cp.items.push(item)
+                }
+                log::debug!("import ok")
+            }
+            let new_bt = ui.button("New ✚").on_hover_text("Add new Secret");
+            if new_bt.clicked() {
+                log::debug!("new item");
+                cp.state = State::New;
+            }
         });
     });
     ui.add_space(10.);

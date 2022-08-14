@@ -35,7 +35,7 @@ impl InputItem {
 }
 
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone,PartialEq, Default, Deserialize, Serialize)]
 pub struct Item {
     pub(crate) id: String,
     pub(crate) account: String,
