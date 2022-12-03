@@ -2,16 +2,19 @@ use std::os::macos::raw::stat;
 use std::time::Duration;
 
 use copypasta::{ClipboardContext, ClipboardProvider};
-use eframe::{egui, Storage};
+use eframe::{CreationContext, egui, Storage};
 use eframe::egui::{Button, Frame, Hyperlink, Label, Layout, Separator, TextStyle, TopBottomPanel, Ui};
+use egui::RichText;
 use once_cell::sync::Lazy;
 use uuid::Uuid;
 
 use types::{*};
 use types::Item;
 
+use crate::constants::BASE_FONT_SIZE;
 use crate::db::Database;
-use crate::egui::{Align, ScrollArea};
+use crate::egui::{Align, Color32, ScrollArea};
+use crate::egui::WidgetText;
 
 static DB: Lazy<Database> = Lazy::new(|| {
     let database = Database::new(".db").unwrap();
@@ -23,6 +26,8 @@ mod utils;
 mod types;
 mod db;
 mod constants;
+mod font;
+mod page;
 
 #[derive(Debug, PartialEq)]
 enum State {
@@ -42,7 +47,7 @@ pub struct CPandas {
 }
 
 impl CPandas {
-    pub fn new() -> Self {
+    pub fn new(ctx: &CreationContext<'_>) -> Self {
         let tmp_items = DB.get_item_list();
         let mut items: Vec<Item> = Vec::new();
         if let Ok(item_list) = tmp_items {
@@ -50,7 +55,7 @@ impl CPandas {
                 items = list
             }
         };
-
+        font::FontManager::load_custom_fonts(&ctx.egui_ctx, "././fonts/icons.ttf".to_string());
         Self {
             items,
             input_secret: "".to_string(),
@@ -86,34 +91,38 @@ fn guild_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
         cp.input_secret_tips = "please input  password".to_string();
     }
 
-    ui.label(format!("tips: {}", &cp.input_secret_tips));
+    ui.label(RichText::new(format!("tips: {}", &cp.input_secret_tips)).size(BASE_FONT_SIZE));
+    ui.add_space(5.);
     ui.horizontal(|ui| {
-        ui.label("Input Password: ");
+        ui.label(RichText::new("Input Password:").size(BASE_FONT_SIZE));
         ui.text_edit_singleline(&mut cp.input_secret);
     });
+    ui.add_space(10.);
 
-    if ui.button("Confirm").clicked() {
-        log::debug!("confirm submit");
-        if cp.input_secret == "" {
-            cp.input_secret_tips = "password can`t empty".to_string();
-            return;
-        }
-        let secret_hash_opt = DB.get_secret_hash().unwrap();
-        let secret_key = utils::get_valid_aes_key(cp.input_secret.clone()).unwrap();
-        cp.input_secret = secret_key.clone();
-        let input_secret_hash = utils::sha256(secret_key.as_bytes()).unwrap();
-        if let Some(secret_hash) = secret_hash_opt {
-            if input_secret_hash == String::from_utf8(secret_hash).unwrap() {
-                cp.state = State::Home;
-            } else {
-                cp.input_secret_tips = "password not correct".to_string();
-                cp.input_secret = "".to_string();
+    ui.vertical_centered(|ui| {
+        if ui.button(RichText::new("Confirm").size(BASE_FONT_SIZE).color(Color32::BLUE)).clicked() {
+            log::debug!("confirm submit");
+            if cp.input_secret == "" {
+                cp.input_secret_tips = "password can`t empty".to_string();
+                return;
             }
-        } else {
-            DB.put_secret_hash(input_secret_hash).unwrap();
-            cp.state = State::Home;
+            let secret_hash_opt = DB.get_secret_hash().unwrap();
+            let secret_key = utils::get_valid_aes_key(cp.input_secret.clone()).unwrap();
+            cp.input_secret = secret_key.clone();
+            let input_secret_hash = utils::sha256(secret_key.as_bytes()).unwrap();
+            if let Some(secret_hash) = secret_hash_opt {
+                if input_secret_hash == String::from_utf8(secret_hash).unwrap() {
+                    cp.state = State::Home;
+                } else {
+                    cp.input_secret_tips = "password not correct".to_string();
+                    cp.input_secret = "".to_string();
+                }
+            } else {
+                DB.put_secret_hash(input_secret_hash).unwrap();
+                cp.state = State::Home;
+            }
         }
-    }
+    });
 }
 
 fn home_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
@@ -197,8 +206,6 @@ fn new_view(cp: &mut CPandas, ctx: &egui::Context, ui: &mut Ui) {
         if ui.button("Submit").clicked() {
             log::debug!("new submit");
             let uuid = Uuid::new_v4().to_string();
-            println!("{:?}", cp.new_temp_item);
-            println!("{:?}", cp.new_temp_item);
             let (ciphertext, nonce) = utils::aes256_encode(
                 cp.new_temp_item.secret_value.as_bytes(),
                 cp.input_secret.as_bytes()).unwrap();

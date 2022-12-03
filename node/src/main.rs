@@ -1,6 +1,6 @@
 use eframe::egui::Vec2;
 use log::LevelFilter;
-use node::CPandas;
+use CPandas::CPandas;
 
 fn main() {
     env_logger::builder().filter(Some("node"),LevelFilter::Trace).init();
@@ -9,6 +9,6 @@ fn main() {
     eframe::run_native(
         "CPandas",
         options,
-        Box::new(|_cc| Box::new(CPandas::new())),
+        Box::new(|cc| Box::new(CPandas::new(cc))),
     );
 }
